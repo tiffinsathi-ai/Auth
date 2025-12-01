@@ -1,0 +1,20 @@
+{
+  "users": [
+    {
+      "id": "6e4c",
+      "name": "John Doe",
+      "email": "john@example.com",
+      "phone": "+9779812345678",
+      "address": "Kathmandu, Nepal",
+      "password": "hashed_password_here"
+    },
+    {
+      "id": "de9f",
+      "name": "Nihit",
+      "email": "nihitshahi123@gmail.com",
+      "phone": "9863834352",
+      "address": "damaitole",
+      "password": "5128661a9d499053685422294d47cc2b842abf8739ee8c8234f71827c8ae570f"
+    }
+  ]
+}
