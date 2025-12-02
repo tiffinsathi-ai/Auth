@@ -11,7 +11,8 @@ import {
   RefreshCw,
   AlertCircle,
   Clock,
-  Filter
+  Filter,
+  CheckCircle
 } from "lucide-react";
 
 const API_BASE = "http://localhost:8080/api";
@@ -21,7 +22,7 @@ const VendorPortal = ({ user, onLogout }) => {
   const [orders, setOrders] = useState([]);
   const [upcomingOrders, setUpcomingOrders] = useState([]);
   const [allSubscriptions, setAllSubscriptions] = useState([]);
-  const [subscriptionFilter, setSubscriptionFilter] = useState("ALL"); // Changed to ALL by default
+  const [subscriptionFilter, setSubscriptionFilter] = useState("ALL");
   const [deliveryPartners, setDeliveryPartners] = useState([]);
   const [selectedDate, setSelectedDate] = useState(
     new Date().toISOString().split("T")[0]
@@ -30,6 +31,7 @@ const VendorPortal = ({ user, onLogout }) => {
   const [loadingUpcoming, setLoadingUpcoming] = useState(false);
   const [error, setError] = useState("");
   const [debugInfo, setDebugInfo] = useState("");
+  const [selectedDeliveryPartner, setSelectedDeliveryPartner] = useState({});
 
   useEffect(() => {
     if (activeTab === "orders") {
@@ -201,6 +203,23 @@ const VendorPortal = ({ user, onLogout }) => {
     }
   };
 
+  const assignDeliveryPartner = async (orderId, partnerId) => {
+    try {
+      if (!partnerId) {
+        setError("Please select a delivery partner");
+        return;
+      }
+
+      const partner = deliveryPartners.find(p => p.partnerId === partnerId);
+      setSelectedDeliveryPartner({...selectedDeliveryPartner, [orderId]: partner});
+
+      await updateOrderStatus(orderId, "ASSIGNED", partnerId);
+    } catch (err) {
+      console.error("Failed to assign delivery partner:", err);
+      setError("Failed to assign delivery partner");
+    }
+  };
+
   const statusColor = (status) => {
     const map = {
       PENDING: "bg-yellow-100 text-yellow-800 border-yellow-200",
@@ -208,6 +227,9 @@ const VendorPortal = ({ user, onLogout }) => {
       PREPARING: "bg-orange-100 text-orange-800 border-orange-200",
       READY_FOR_DELIVERY: "bg-purple-100 text-purple-800 border-purple-200",
       OUT_FOR_DELIVERY: "bg-indigo-100 text-indigo-800 border-indigo-200",
+      PICKED_UP: "bg-blue-100 text-blue-800 border-blue-200",
+      ON_THE_WAY: "bg-purple-100 text-purple-800 border-purple-200",
+      ARRIVED: "bg-teal-100 text-teal-800 border-teal-200",
       DELIVERED: "bg-green-100 text-green-800 border-green-200",
       CANCELLED: "bg-red-100 text-red-800 border-red-200",
       FAILED: "bg-gray-100 text-gray-800 border-gray-200",
@@ -230,17 +252,14 @@ const VendorPortal = ({ user, onLogout }) => {
   const orderCountByStatus = (status) =>
     orders.filter((o) => o.status === status).length;
 
-  // Get filtered subscriptions based on current filter
   const filteredSubscriptions = subscriptionFilter === "ALL" 
     ? allSubscriptions 
     : allSubscriptions.filter(sub => sub.status === subscriptionFilter);
 
-  // Get all unique statuses from orders for counters
   const allStatuses = [...new Set(orders.map(order => order.status))];
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <header className="bg-white border-b shadow-sm">
         <div className="max-w-7xl mx-auto px-6 h-16 flex justify-between items-center">
           <div className="flex items-center gap-2">
@@ -265,7 +284,6 @@ const VendorPortal = ({ user, onLogout }) => {
         </div>
       </header>
 
-      {/* Debug Info */}
       {debugInfo && (
         <div className="max-w-7xl mx-auto px-6 py-2">
           <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2 rounded text-sm">
@@ -274,7 +292,6 @@ const VendorPortal = ({ user, onLogout }) => {
         </div>
       )}
 
-      {/* Tabs */}
       <nav className="bg-white border-b shadow-sm">
         <div className="max-w-7xl mx-auto px-6 flex gap-8">
           <TabButton
@@ -292,7 +309,6 @@ const VendorPortal = ({ user, onLogout }) => {
         </div>
       </nav>
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto py-6 px-6">
         {error && (
           <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded flex items-center justify-between">
@@ -318,7 +334,6 @@ const VendorPortal = ({ user, onLogout }) => {
   function renderOrders() {
     return (
       <div>
-        {/* Top Bar */}
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-gray-900">Order Management</h2>
 
@@ -347,7 +362,6 @@ const VendorPortal = ({ user, onLogout }) => {
           </div>
         </div>
 
-        {/* Status Counters - Show ALL statuses */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-6">
           {allStatuses.map((status) => (
             <div key={status} className="bg-white p-4 rounded-lg border text-center shadow-sm">
@@ -364,7 +378,6 @@ const VendorPortal = ({ user, onLogout }) => {
           )}
         </div>
 
-        {/* Today's Orders */}
         <div className="mb-12">
           <div className="flex items-center gap-2 mb-4">
             <Calendar className="h-5 w-5 text-gray-600" />
@@ -398,6 +411,8 @@ const VendorPortal = ({ user, onLogout }) => {
                   order={order} 
                   deliveryPartners={deliveryPartners}
                   onUpdateStatus={updateOrderStatus}
+                  onAssignDelivery={assignDeliveryPartner}
+                  selectedDeliveryPartner={selectedDeliveryPartner[order.orderId]}
                   showActions={true}
                 />
               ))}
@@ -405,7 +420,6 @@ const VendorPortal = ({ user, onLogout }) => {
           )}
         </div>
 
-        {/* Upcoming Orders */}
         <div>
           <div className="flex items-center gap-2 mb-4">
             <Clock className="h-5 w-5 text-blue-600" />
@@ -432,6 +446,8 @@ const VendorPortal = ({ user, onLogout }) => {
                   order={order} 
                   deliveryPartners={deliveryPartners}
                   onUpdateStatus={updateOrderStatus}
+                  onAssignDelivery={assignDeliveryPartner}
+                  selectedDeliveryPartner={selectedDeliveryPartner[order.orderId]}
                   showActions={false}
                 />
               ))}
@@ -449,7 +465,6 @@ const VendorPortal = ({ user, onLogout }) => {
           <div className="flex items-center gap-4">
             <h2 className="text-2xl font-bold text-gray-900">Subscriptions</h2>
             
-            {/* Subscription Filter */}
             <div className="flex items-center gap-2">
               <Filter className="h-4 w-4 text-gray-500" />
               <select
@@ -553,7 +568,6 @@ const VendorPortal = ({ user, onLogout }) => {
                   )}
                 </div>
 
-                {/* Payment Info */}
                 {subscription.payment && (
                   <div className="mt-4 p-3 bg-gray-50 rounded">
                     <strong className="text-gray-700">Payment: </strong>
@@ -571,15 +585,17 @@ const VendorPortal = ({ user, onLogout }) => {
   }
 };
 
-// Order Card Component
-const OrderCard = ({ order, deliveryPartners, onUpdateStatus, showActions }) => {
+const OrderCard = ({ order, deliveryPartners, onUpdateStatus, onAssignDelivery, selectedDeliveryPartner, showActions }) => {
   const statusColor = (status) => {
     const map = {
       PENDING: "bg-yellow-100 text-yellow-800 border-yellow-200",
       CONFIRMED: "bg-blue-100 text-blue-800 border-blue-200",
       PREPARING: "bg-orange-100 text-orange-800 border-orange-200",
       READY_FOR_DELIVERY: "bg-purple-100 text-purple-800 border-purple-200",
-      OUT_FOR_DELIVERY: "bg-indigo-100 text-indigo-800 border-indigo-200",
+      ASSIGNED: "bg-indigo-100 text-indigo-800 border-indigo-200",
+      OUT_FOR_DELIVERY: "bg-purple-100 text-purple-800 border-purple-200",
+      PICKED_UP: "bg-blue-100 text-blue-800 border-blue-200",
+      ARRIVED: "bg-teal-100 text-teal-800 border-teal-200",
       DELIVERED: "bg-green-100 text-green-800 border-green-200",
       CANCELLED: "bg-red-100 text-red-800 border-red-200",
       FAILED: "bg-gray-100 text-gray-800 border-gray-200",
@@ -614,7 +630,6 @@ const OrderCard = ({ order, deliveryPartners, onUpdateStatus, showActions }) => 
         </span>
       </div>
 
-      {/* Meals */}
       <div className="mb-4">
         <h4 className="text-sm font-medium text-gray-900 mb-2">Meals</h4>
         <div className="space-y-2">
@@ -629,14 +644,12 @@ const OrderCard = ({ order, deliveryPartners, onUpdateStatus, showActions }) => 
         </div>
       </div>
 
-      {/* Delivery Info */}
       <div className="mb-4">
         <p className="text-sm text-gray-600">
           <strong>Address:</strong> {order.deliveryAddress}
         </p>
       </div>
 
-      {/* Instructions */}
       {order.specialInstructions && (
         <div className="bg-yellow-50 border border-yellow-200 p-3 rounded mb-4">
           <p className="text-sm text-yellow-800">
@@ -645,7 +658,6 @@ const OrderCard = ({ order, deliveryPartners, onUpdateStatus, showActions }) => 
         </div>
       )}
 
-      {/* Actions - Only show for today's orders */}
       {showActions && (
         <div className="flex gap-2 flex-wrap">
           {order.status === "PENDING" && (
@@ -665,20 +677,15 @@ const OrderCard = ({ order, deliveryPartners, onUpdateStatus, showActions }) => 
           )}
 
           {order.status === "READY_FOR_DELIVERY" && (
-            <div className="flex gap-2 items-center">
+            <div className="flex gap-2 items-center w-full">
               <select
-                className="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 flex-grow"
                 onChange={(e) => {
-                  if (e.target.value) {
-                    onUpdateStatus(
-                      order.orderId,
-                      "OUT_FOR_DELIVERY",
-                      e.target.value
-                    );
-                  }
+                  onAssignDelivery(order.orderId, e.target.value);
                 }}
+                defaultValue=""
               >
-                <option value="">Assign Delivery Person</option>
+                <option value="" disabled>Select Delivery Partner</option>
                 {deliveryPartners
                   .filter(partner => partner.isActive)
                   .map(partner => (
@@ -691,33 +698,30 @@ const OrderCard = ({ order, deliveryPartners, onUpdateStatus, showActions }) => 
             </div>
           )}
 
-          {order.status === "OUT_FOR_DELIVERY" && (
-            <div className="flex items-center gap-2 text-sm text-gray-600">
+          {(order.status === "ASSIGNED" || 
+            order.status === "PICKED_UP" || 
+            order.status === "OUT_FOR_DELIVERY" || 
+            order.status === "ARRIVED") && (
+            <div className="flex items-center gap-2 text-sm text-gray-600 w-full">
               <Truck className="h-4 w-4" />
               <span>
                 Assigned to: {
-                  deliveryPartners.find(p => p.partnerId === order.deliveryPersonId)?.name || 
+                  selectedDeliveryPartner?.name || 
+                  deliveryPartners.find(p => p.partnerId == order.deliveryPersonId)?.name || 
                   `Delivery Partner ${order.deliveryPersonId}`
                 }
               </span>
+              {order.deliveryPersonId && (
+                <CheckCircle className="h-4 w-4 text-green-600 ml-2" />
+              )}
             </div>
           )}
 
-          {/* Additional status actions */}
-          {order.status === "OUT_FOR_DELIVERY" && (
-            <ActionButton
-              label="Mark Delivered"
-              color="green"
-              onClick={() => onUpdateStatus(order.orderId, "DELIVERED")}
-            />
-          )}
-
-          {order.status === "DELIVERED" && (
-            <ActionButton
-              label="Mark Completed"
-              color="emerald"
-              onClick={() => onUpdateStatus(order.orderId, "COMPLETED")}
-            />
+          {(order.status === "DELIVERED" || order.status === "COMPLETED") && (
+            <div className="flex items-center gap-2 text-sm text-gray-600 w-full">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <span className="text-green-600 font-medium">Order Delivered Successfully</span>
+            </div>
           )}
 
           {(order.status === "PENDING" || order.status === "CONFIRMED") && (

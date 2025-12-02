@@ -3,7 +3,6 @@ import axios from 'axios';
 
 const API_BASE = "http://localhost:8080";
 
-// Create axios instance with default config
 const apiClient = axios.create({
   baseURL: API_BASE,
   headers: {
@@ -52,7 +51,7 @@ export const deliveryApi = {
   toggleAvailability: () => 
     apiClient.put('/api/delivery/availability'),
 
-  // Orders Management - Enhanced with better error handling
+  // Orders Management
   getTodaysOrders: () => apiClient.get('/api/orders/today'),
   
   getMyOrders: () => 
@@ -78,36 +77,7 @@ export const deliveryApi = {
   assignDeliveryPerson: (orderId, deliveryPersonId) =>
     apiClient.put(`/api/orders/${orderId}/assign-delivery?deliveryPersonId=${deliveryPersonId}`),
 
-  // Enhanced order details with customer information
-  getOrderWithCustomerDetails: async (orderId) => {
-    try {
-      // First get all orders and find the specific one
-      const response = await apiClient.get('/api/orders/delivery/all');
-      const orders = response.data;
-      const order = orders.find(o => o.orderId === orderId);
-      
-      if (!order) {
-        throw new Error('Order not found');
-      }
-      
-      return order;
-    } catch (error) {
-      console.error('Error fetching order details:', error);
-      throw error;
-    }
-  },
-
-  // Utility function for file upload conversion
-  convertToBase64: (file) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = (error) => reject(error);
-    });
-  },
-
-  // Get current user data with enhanced error handling
+  // Get current user data
   getCurrentUser: async () => {
     try {
       const response = await apiClient.get('/api/delivery/profile');
@@ -123,15 +93,67 @@ export const deliveryApi = {
           return {
             email: payload.email,
             name: payload.name || 'Delivery Partner',
-            role: payload.role || 'DELIVERY'
+            userName: payload.userName || payload.name || 'Delivery Partner',
+            role: payload.role || 'DELIVERY',
+            vehicleInfo: payload.vehicleInfo || 'Delivery Vehicle'
           };
         } catch (e) {
           console.error('Error parsing token:', e);
         }
       }
       
+      // Return fallback user data
+      return {
+        userName: "Delivery Partner",
+        email: "delivery@tiffinsathi.com",
+        vehicleInfo: "Delivery Vehicle"
+      };
+    }
+  },
+
+  // Get order details with enhanced customer info
+  getOrderDetails: async (orderId) => {
+    try {
+      const response = await apiClient.get(`/api/orders/${orderId}/details`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching order details:', error);
       throw error;
     }
+  },
+
+  // Profile picture handling
+  uploadProfilePicture: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiClient.post('/api/delivery/profile/picture', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+
+  // Get profile picture
+  getProfilePicture: async (userId) => {
+    try {
+      const response = await apiClient.get(`/api/delivery/profile/picture/${userId}`, {
+        responseType: 'blob'
+      });
+      return URL.createObjectURL(response.data);
+    } catch (error) {
+      console.error('Error fetching profile picture:', error);
+      return null;
+    }
+  },
+
+  // Utility function for file upload conversion
+  convertToBase64: (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = (error) => reject(error);
+    });
   },
 
   // Validate order data structure
@@ -151,13 +173,20 @@ export const deliveryApi = {
     if (!order.customer) {
       order.customer = {
         userName: 'Customer',
+        name: 'Customer',
         phoneNumber: null,
         email: null
       };
     }
 
     return order;
-  }
+  },
+
+  // Get delivery statistics
+  getDeliveryStats: () => apiClient.get('/api/delivery/stats'),
+
+  // Get earnings summary
+  getEarnings: () => apiClient.get('/api/delivery/earnings'),
 };
 
 export default deliveryApi;
