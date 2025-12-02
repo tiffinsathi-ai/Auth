@@ -17,6 +17,9 @@ import DeliveryLayout from './components/Delivery/DeliveryLayout';
 import DeliveryDashboard from './Pages/Delivery/DeliveryDashboard';
 import DeliveryProfile from './Pages/Delivery/DeliveryProfile';
 import OrderDeliveries from './Pages/Delivery/OrderDeliveries';
+import PaymentSuccess from './Pages/PaymentSuccess';
+import PaymentFailure from './Pages/PaymentFailure';
+import PaymentStatus from './Pages/PaymentStatus';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -66,6 +69,11 @@ function App() {
             path="/user/*" 
             element={user && user.role === 'USER' ? <UserPortal user={user} onLogout={logout} /> : <Navigate to="/login" />} 
           />
+          <Route path="/payment/success" element={<PaymentSuccess />} />
+          <Route path="/payment/failure" element={<PaymentFailure />} />
+          <Route path="/payment/status/:paymentId" element={<PaymentStatus />} />
+
+
           <Route 
             path="/vendor/*" 
             element={user && user.role === 'VENDOR' ? <VendorPortal user={user} onLogout={logout} /> : <Navigate to="/login" />} 
