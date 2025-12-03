@@ -93,6 +93,25 @@ const UserPortal = ({ user, onLogout }) => {
     }
   }, [activeTab]);
 
+  // --- DATE HELPER FUNCTIONS ---
+  const getMinStartDate = () => {
+    const today = new Date();
+    const minDate = new Date(today);
+    minDate.setDate(today.getDate() + 2); // Minimum 2 days gap
+    return minDate.toISOString().split('T')[0];
+  };
+
+  const formatDateForDisplay = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+  };
+
   // --- LOCATION SERVICES ---
   const getUserLocation = () => {
     return new Promise((resolve, reject) => {
@@ -506,19 +525,13 @@ const UserPortal = ({ user, onLogout }) => {
   // --- SUBSCRIPTION LOGIC ---
   const handlePackageSelect = (mealPackage) => {
     setSelectedPackage(mealPackage);
+    const minStartDate = getMinStartDate();
     setSubscriptionData(prev => ({
       ...prev,
       packageId: mealPackage.packageId,
-      startDate: getNextMonday()
+      startDate: minStartDate
     }));
     setActiveTab('schedule');
-  };
-
-  const getNextMonday = () => {
-    const today = new Date();
-    const nextMonday = new Date(today);
-    nextMonday.setDate(today.getDate() + ((1 + 7 - today.getDay()) % 7 || 7));
-    return nextMonday.toISOString().split('T')[0];
   };
 
   const toggleDay = (dayIndex) => {
@@ -634,120 +647,125 @@ const UserPortal = ({ user, onLogout }) => {
   };
 
   const handleSubmitSubscription = async () => {
-  try {
-    setLoading(true);
-    setError('');
-    const token = localStorage.getItem('token');
-    
-    if (!subscriptionData.deliveryAddress.trim()) {
-      throw new Error('Delivery address is required');
-    }
-    if (!subscriptionData.startDate) {
-      throw new Error('Start date is required');
-    }
+    try {
+      setLoading(true);
+      setError('');
+      const token = localStorage.getItem('token');
+      
+      if (!subscriptionData.deliveryAddress.trim()) {
+        throw new Error('Delivery address is required');
+      }
+      if (!subscriptionData.startDate) {
+        throw new Error('Start date is required');
+      }
 
-    // Create subscription first
-    const subscriptionResponse = await fetch('http://localhost:8080/api/subscriptions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify(subscriptionData)
-    });
+      // Validate start date is at least 2 days from today
+      const today = new Date();
+      const startDate = new Date(subscriptionData.startDate);
+      const minDate = new Date(today);
+      minDate.setDate(today.getDate() + 2);
+      
+      if (startDate < minDate) {
+        throw new Error('Start date must be at least 2 days from today');
+      }
 
-    if (!subscriptionResponse.ok) {
-      const errorText = await subscriptionResponse.text();
-      throw new Error(errorText || 'Failed to create subscription');
-    }
+      // Create subscription first
+      const subscriptionResponse = await fetch('http://localhost:8080/api/subscriptions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(subscriptionData)
+      });
 
-    const subscription = await subscriptionResponse.json();
-    const subscriptionId = subscription.subscriptionId;
+      if (!subscriptionResponse.ok) {
+        const errorText = await subscriptionResponse.text();
+        throw new Error(errorText || 'Failed to create subscription');
+      }
 
-    // Handle payment based on method
-    if (subscriptionData.paymentMethod === 'CASH_ON_DELIVERY') {
-      // For cash on delivery, just show success
-      setSuccess('Subscription created successfully! Pay on delivery.');
-      setActiveTab('success');
-      fetchUserSubscriptions();
-    } else if (subscriptionData.paymentMethod === 'CARD') {
-      // Handle card payment (you can integrate with a card payment gateway)
-      setError('Card payment integration coming soon. Please use eSewa or Khalti for now.');
+      const subscription = await subscriptionResponse.json();
+      const subscriptionId = subscription.subscriptionId;
+
+      // Handle payment based on method
+      if (subscriptionData.paymentMethod === 'CASH_ON_DELIVERY') {
+        // For cash on delivery, just show success
+        setSuccess('Subscription created successfully! Pay on delivery.');
+        setActiveTab('success');
+        fetchUserSubscriptions();
+      } else if (subscriptionData.paymentMethod === 'CARD') {
+        // Handle card payment (you can integrate with a card payment gateway)
+        setError('Card payment integration coming soon. Please use eSewa or Khalti for now.');
+        setLoading(false);
+      } else {
+        // For eSewa and Khalti, initiate payment
+        await initiatePayment(subscriptionId);
+      }
+    } catch (error) {
+      console.error('Error creating subscription:', error);
+      setError('Failed to create subscription: ' + error.message);
       setLoading(false);
-    } else {
-      // For eSewa and Khalti, initiate payment
-      await initiatePayment(subscriptionId);
     }
-  } catch (error) {
-    console.error('Error creating subscription:', error);
-    setError('Failed to create subscription: ' + error.message);
-    setLoading(false);
-  }
-};
+  };
 
-// New function to initiate payment
-const initiatePayment = async (subscriptionId) => {
-  try {
-    const token = localStorage.getItem('token');
-    const paymentMethod = subscriptionData.paymentMethod;
-    const amount = checkoutData.pricing.grandTotal;
+  const initiatePayment = async (subscriptionId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const paymentMethod = subscriptionData.paymentMethod;
+      const amount = checkoutData.pricing.grandTotal;
 
-    // Call payment initiation endpoint
-    const response = await fetch('http://localhost:8080/api/payments/initiate', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        subscriptionId: subscriptionId,
-        paymentMethod: paymentMethod,
-        amount: amount
-      })
+      // Call payment initiation endpoint
+      const response = await fetch('http://localhost:8080/api/payments/initiate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          subscriptionId: subscriptionId,
+          paymentMethod: paymentMethod,
+          amount: amount
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to initiate payment');
+      }
+
+      const paymentData = await response.json();
+
+      // Handle different payment methods
+      if (paymentMethod === 'ESEWA') {
+        // For eSewa, create a form and submit it
+        handleEsewaPayment(paymentData);
+      } else if (paymentMethod === 'KHALTI') {
+        // For Khalti, redirect to payment URL
+        window.location.href = paymentData.paymentUrl;
+      }
+
+    } catch (error) {
+      console.error('Error initiating payment:', error);
+      setError('Failed to initiate payment: ' + error.message);
+      setLoading(false);
+    }
+  };
+
+  const handleEsewaPayment = (paymentData) => {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = paymentData.paymentUrl;
+
+    Object.entries(paymentData.paymentData).forEach(([key, value]) => {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = key;
+      input.value = value;
+      form.appendChild(input);
     });
 
-    if (!response.ok) {
-      throw new Error('Failed to initiate payment');
-    }
-
-    const paymentData = await response.json();
-
-    // Handle different payment methods
-    if (paymentMethod === 'ESEWA') {
-      // For eSewa, create a form and submit it
-      handleEsewaPayment(paymentData);
-    } else if (paymentMethod === 'KHALTI') {
-      // For Khalti, redirect to payment URL
-      window.location.href = paymentData.paymentUrl;
-    }
-
-  } catch (error) {
-    console.error('Error initiating payment:', error);
-    setError('Failed to initiate payment: ' + error.message);
-    setLoading(false);
-  }
-};
-
-// Handle eSewa payment
-const handleEsewaPayment = (paymentData) => {
-  // Create a form dynamically
-  const form = document.createElement('form');
-  form.method = 'POST';
-  form.action = paymentData.paymentUrl;
-
-  // Add all parameters as hidden inputs
-  Object.entries(paymentData.paymentData).forEach(([key, value]) => {
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.name = key;
-    input.value = value;
-    form.appendChild(input);
-  });
-
-  // Submit the form
-  document.body.appendChild(form);
-  form.submit();
-};
+    document.body.appendChild(form);
+    form.submit();
+  };
 
   const getTodaysOrders = () => {
     const today = new Date().toISOString().split('T')[0];
@@ -1508,16 +1526,24 @@ const handleEsewaPayment = (paymentData) => {
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Start Date
+                            Start Date *
                           </label>
                           <input
                             type="date"
                             value={subscriptionData.startDate}
                             onChange={(e) => setSubscriptionData({...subscriptionData, startDate: e.target.value})}
                             className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            min={getNextMonday()}
+                            min={getMinStartDate()}
                             required
                           />
+                          <p className="text-xs text-gray-500 mt-1">
+                            Earliest available: {formatDateForDisplay(getMinStartDate())}
+                            {subscriptionData.startDate && (
+                              <span className="block mt-1">
+                                Selected: {formatDateForDisplay(subscriptionData.startDate)}
+                              </span>
+                            )}
+                          </p>
                         </div>
                       </div>
                       <div>
@@ -1653,6 +1679,19 @@ const handleEsewaPayment = (paymentData) => {
                         </>
                       )}
                     </button>
+                    
+                    <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                      <div className="flex items-start">
+                        <Clock className="h-4 w-4 text-blue-600 mt-0.5 mr-2 flex-shrink-0" />
+                        <div>
+                          <p className="text-xs text-blue-800 font-medium">Subscription Start</p>
+                          <p className="text-xs text-blue-600">
+                            Your subscription will begin on {formatDateForDisplay(subscriptionData.startDate)}.
+                            A minimum 2-day gap is required for order processing.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

@@ -13,10 +13,10 @@ import {
 
 const MapModal = ({ isOpen, onClose, order, userLocation }) => {
   const getMapUrl = (address) => {
-    if (!address) return null;
-    const encodedAddress = encodeURIComponent(address);
-    return `https://maps.google.com/maps?q=${encodedAddress}&output=embed`;
-  };
+    if (!address) return null;
+    const encodedAddress = encodeURIComponent(address);
+    return `https://maps.google.com/maps?q=${encodedAddress}&output=embed`;
+};
 
   const formatPhoneNumber = (phone) => {
     if (!phone) return "N/A";
@@ -24,6 +24,7 @@ const MapModal = ({ isOpen, onClose, order, userLocation }) => {
   };
 
   return (
+    
     <Modal
       isOpen={isOpen}
       onClose={onClose}
@@ -185,7 +186,7 @@ const MapModal = ({ isOpen, onClose, order, userLocation }) => {
             {/* -------------------- ACTION BUTTONS -------------------- */}
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
               <a
-                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                href={`https://maps.google.com/?q=${encodeURIComponent(
                   order.deliveryAddress
                 )}`}
                 target="_blank"
